@@ -1,0 +1,12 @@
+FROM mysql:5.7
+
+ENV DATABASE_HOST=
+ENV DATABASE_PORT=
+ENV DATABASE_USERNAME=
+ENV DATABASE_PASSWORD=
+
+WORKDIR /tmp
+
+COPY . .
+
+CMD ["bash", "-c", "mysql --host=${DATABASE_HOST} --port=${DATABASE_PORT} --user=${DATABASE_USERNAME} --password=${DATABASE_PASSWORD} < springboot_backend.sql"]

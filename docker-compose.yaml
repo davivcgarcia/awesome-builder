@@ -1,0 +1,59 @@
+version: '3'
+services:
+  dotnet-frontend:
+    build:
+      context: ./dotnet-frontend/
+      dockerfile: ./Dockerfile
+    image: octank/dotnet-frontend
+    ports:
+      - '80:80'
+    environment:
+      - IMAGE_BACKEND=http://nodejs-backend:3000/api/v1/image/
+      - FAVORITE_BACKEND=http://springboot-backend:8080/api/v1/favorite/
+    links:
+      - nodejs-backend
+      - springboot-backend
+  nodejs-backend:
+    build:
+      context: ./nodejs-backend/
+      dockerfile: ./Dockerfile
+    image: octank/nodejs-backend
+    ports:
+      - '3000:3000'
+  springboot-backend:
+    build:
+      context: ./springboot-backend/
+      dockerfile: ./Dockerfile
+    image: octank/springboot-backend
+    ports:
+      - '8080:8080'
+    environment:
+      - DATABASE_HOST=database
+      - DATABASE_PORT=3306
+      - DATABASE_USERNAME=root
+      - DATABASE_PASSWORD=
+      - DATABASE_NAME=springboot_db
+    links:
+      - database
+    depends_on:
+      - springboot-db-init
+  springboot-db-init:
+    build:
+      context: ./springboot-db-init/
+      dockerfile: ./Dockerfile
+    image: octank/springboot-db-init
+    environment:
+      - DATABASE_HOST=database
+      - DATABASE_PORT=3306
+      - DATABASE_USERNAME=root
+      - DATABASE_PASSWORD=
+    links:
+      - database
+    depends_on:
+      - database
+    restart: on-failure
+  database:
+    image: mysql:5.6
+    environment:
+      - MYSQL_ROOT_HOST=%
+      - MYSQL_ALLOW_EMPTY_PASSWORD=yes

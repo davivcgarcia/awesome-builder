@@ -1,0 +1,48 @@
+<powershell>
+if ( Get-Service "AWSXRayDaemon" -ErrorAction SilentlyContinue ) {
+    sc.exe stop AWSXRayDaemon
+    sc.exe delete AWSXRayDaemon
+}
+
+$targetLocation = "C:\Program Files\Amazon\XRay"
+if ((Test-Path $targetLocation) -eq 0) {
+    mkdir $targetLocation
+}
+
+$zipFileName = "aws-xray-daemon-windows-service-3.x.zip"
+$zipPath = "$targetLocation\$zipFileName"
+$destPath = "$targetLocation\aws-xray-daemon"
+if ((Test-Path $destPath) -eq 1) {
+    Remove-Item -Recurse -Force $destPath
+}
+
+$daemonPath = "$destPath\xray.exe"
+$daemonLogPath = "$targetLocation\xray-daemon.log"
+$url = "https://s3.dualstack.us-west-2.amazonaws.com/aws-xray-assets.us-west-2/xray-daemon/aws-xray-daemon-windows-service-3.x.zip"
+
+Invoke-WebRequest -Uri $url -OutFile $zipPath
+Add-Type -Assembly "System.IO.Compression.Filesystem"
+[io.compression.zipfile]::ExtractToDirectory($zipPath, $destPath)
+
+New-Service -Name "AWSXRayDaemon" -StartupType Automatic -BinaryPathName "`"$daemonPath`" -f `"$daemonLogPath`""
+sc.exe start AWSXRayDaemon
+
+Start-Transcript; 
+
+# Install IIS
+Import-Module ServerManager; 
+Enable-WindowsOptionalFeature -Online -NoRestart -FeatureName 'IIS-WebServerRole', 'IIS-WebServer', 'IIS-ManagementConsole';
+
+# Configure Bindings to :443
+New-WebBinding -Name "Default Web Site" -IP "*" -Port 443 -Protocol https -SslFlags 0;
+$newCert = New-SelfSignedCertificate -DnsName localhost -CertStoreLocation cert:\LocalMachine\My; 
+$SslBinding = Get-WebBinding -Name "Default Web Site" -Protocol "https";
+$SslBinding.AddSslCertificate($newCert.GetCertHashString(), "my"); 
+Get-WebBinding -Port 80 -Name "Default Web Site" | Remove-WebBinding;
+
+# Install CodeDeploy Agent 
+Import-Module AWSPowerShell; 
+New-Item -Path "C:\Temp" -ItemType "directory" -Force; 
+Read-S3Object -BucketName aws-codedeploy-us-east-1 -Key latest/codedeploy-agent.msi -File c:\temp\codedeploy-agent.msi; 
+c:\temp\codedeploy-agent.msi /quiet /l c:\temp\host-agent-install-log.txt;
+</powershell>
